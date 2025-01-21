@@ -21,7 +21,7 @@ export default class LinkConverterPlugin extends Plugin {
             id: 'convert-wikis-to-md-in-active-file',
             name: 'Active File: Links to Markdown',
             callback: () => {
-                Converter.convertLinksInActiveFile(this, 'markdown');
+                Converter.convertLinksInActiveFile(this, 'markdown', this.settings.finalLinkFormat);
             },
         });
 
@@ -29,7 +29,7 @@ export default class LinkConverterPlugin extends Plugin {
             id: 'convert-md-to-wikis-in-active-file',
             name: 'Active File: Links to Wiki',
             callback: () => {
-                Converter.convertLinksInActiveFile(this, 'wiki');
+                Converter.convertLinksInActiveFile(this, 'wiki', this.settings.finalLinkFormat);
             },
         });
 
@@ -38,7 +38,7 @@ export default class LinkConverterPlugin extends Plugin {
             name: 'Vault: Links to Markdown',
             callback: () => {
                 let infoText = 'Are you sure you want to convert all Wikilinks to Markdown Links?';
-                let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksInVault(this, 'markdown'));
+                let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksInVault(this, 'markdown', this.settings.finalLinkFormat));
                 modal.open();
             },
         });
@@ -48,8 +48,23 @@ export default class LinkConverterPlugin extends Plugin {
             name: 'Vault: Links to Wiki',
             callback: () => {
                 let infoText = 'Are you sure you want to convert all Markdown Links to Wikilinks?';
-                let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksInVault(this, 'wiki'));
+                let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksInVault(this, 'wiki', this.settings.finalLinkFormat));
                 modal.open();
+            },
+        });
+
+        this.addCommand({
+            id: 'convert-links-to-preferred-format-in-vault',
+            name: `Vault: Internal Links to the preferred format`,
+            callback: () => {
+                if (this.settings.finalLinkFormat !== 'not-change') {
+                    let formatStr = this.settings.finalLinkFormat === 'absolute-path' ? 'Absolute Path' : this.settings.finalLinkFormat === 'shortest-path' ? 'Shortest Path' : 'Relative Path';
+                    let infoText = `Are you sure you want to convert all internal links to the ${formatStr} format?`;
+                    let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksInVault(this, 'preferred', this.settings.finalLinkFormat));
+                    modal.open();
+                } else {
+                    return false;
+                }
             },
         });
 
@@ -107,13 +122,13 @@ export default class LinkConverterPlugin extends Plugin {
         menu.addItem((item) => {
             item.setTitle('Markdown Links to Wiki')
                 .setIcon('bracketIcon')
-                .onClick(() => Converter.convertLinksAndSaveInSingleFile(file, this, 'wiki'));
+                .onClick(() => Converter.convertLinksAndSaveInSingleFile(file, this, 'wiki', this.settings.finalLinkFormat));
         });
 
         menu.addItem((item) => {
             item.setTitle('WikiLinks to Markdown')
                 .setIcon('markdownIcon')
-                .onClick(() => Converter.convertLinksAndSaveInSingleFile(file, this, 'markdown'));
+                .onClick(() => Converter.convertLinksAndSaveInSingleFile(file, this, 'markdown', this.settings.finalLinkFormat));
         });
 
         if (this.settings.finalLinkFormat !== 'not-change') {

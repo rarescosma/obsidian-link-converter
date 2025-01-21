@@ -61,7 +61,7 @@ export class FolderSuggestionModal extends FuzzySuggestModal<TFolder> {
         let infoText = `Are you sure you want to convert all 
             ${this.finalFormat === 'wiki' ? 'Markdown Links to Wikilinks' : 'Wikilinks to Markdown Links'} 
             under ${folder.name}?`;
-        let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksUnderFolder(folder, this.plugin, this.finalFormat));
+        let modal = new ConfirmationModal(this.app, infoText, () => Converter.convertLinksUnderFolder(folder, this.plugin, this.finalFormat, this.plugin.settings.finalLinkFormat));
         modal.open();
     }
 }

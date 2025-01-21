@@ -4,7 +4,7 @@ import { getFilesUnderPath } from './utils';
 
 /* -------------------- LINK DETECTOR -------------------- */
 
-type FinalFormat = 'relative-path' | 'absolute-path' | 'shortest-path';
+type PreferredFormat = 'relative-path' | 'absolute-path' | 'shortest-path' | 'not-change';
 type LinkType = 'markdown' | 'wiki' | 'wikiTransclusion' | 'mdTransclusion';
 
 interface LinkMatch {
@@ -109,26 +109,44 @@ const getAllLinkMatchesInFile = async (mdFile: TFile, plugin: LinkConverterPlugi
 /* -------------------- CONVERTERS -------------------- */
 
 // --> Converts single file to provided final format and save back in the file
-export const convertLinksAndSaveInSingleFile = async (mdFile: TFile, plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki') => {
+export const convertLinksAndSaveInSingleFile = async (mdFile: TFile, plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki' | 'preferred', preferredFormat: PreferredFormat) => {
     let fileText = await plugin.app.vault.read(mdFile);
-    let newFileText =
-        finalFormat === 'markdown' ? await convertWikiLinksToMarkdown(fileText, mdFile, plugin) : await convertMarkdownLinksToWikiLinks(fileText, mdFile, plugin);
+    switch (finalFormat) {
+
+    }
+
+    let newFileText: string;
+    switch (finalFormat) {
+        case 'markdown': {
+            newFileText = await convertWikiLinksToMarkdown(fileText, mdFile, plugin);
+            break
+        }
+        case 'wiki': {
+            newFileText = await convertMarkdownLinksToWikiLinks(fileText, mdFile, plugin);
+            break
+        }
+        case 'preferred': {
+            newFileText = await convertLinksInTextToPreferredFormat(mdFile, plugin, preferredFormat);
+            break;
+        }
+    }
+
     let fileStat = plugin.settings.keepMtime ? await plugin.app.vault.adapter.stat(normalizePath(mdFile.path)) : {};
     await plugin.app.vault.modify(mdFile, newFileText, fileStat);
 };
 
 // --> Command Function: Converts All Links and Saves in Current Active File
-export const convertLinksInActiveFile = async (plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki') => {
+export const convertLinksInActiveFile = async (plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki', preferredFormat: PreferredFormat) => {
     let mdFile: TFile = plugin.app.workspace.getActiveFile();
     if (mdFile.extension === 'md') {
-        await convertLinksAndSaveInSingleFile(mdFile, plugin, finalFormat);
+        await convertLinksAndSaveInSingleFile(mdFile, plugin, finalFormat, preferredFormat);
     } else {
         new Notice('Active File is not a Markdown File');
     }
 };
 
 // --> Convert Links under Files under a Certain Folder
-export const convertLinksUnderFolder = async (folder: TFolder, plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki') => {
+export const convertLinksUnderFolder = async (folder: TFolder, plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki' | 'preferred', preferredFormat: PreferredFormat) => {
     let mdFiles: TFile[] = getFilesUnderPath(folder.path, plugin);
     let notice = new Notice('Starting link conversion', 0);
     try {
@@ -141,7 +159,7 @@ export const convertLinksUnderFolder = async (folder: TFolder, plugin: LinkConve
             if (hasFrontmatter(plugin.app, mdFile.path, 'excalidraw-plugin') || hasFrontmatter(plugin.app, mdFile.path, 'kanban-plugin')) {
                 continue;
             }
-            await convertLinksAndSaveInSingleFile(mdFile, plugin, finalFormat);
+            await convertLinksAndSaveInSingleFile(mdFile, plugin, finalFormat, preferredFormat);
         }
     } catch (err) {
         console.log(err);
@@ -174,8 +192,8 @@ export const convertLinksWithinSelection = async (finalFormat: 'markdown' | 'wik
 };
 
 // --> Command Function: Converts All Links in All Files in Vault and Save in Corresponding Files
-export const convertLinksInVault = async (plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki') => {
-    convertLinksUnderFolder(plugin.app.vault.getRoot(), plugin, finalFormat);
+export const convertLinksInVault = async (plugin: LinkConverterPlugin, finalFormat: 'markdown' | 'wiki' | 'preferred', preferredFormat: PreferredFormat) => {
+    convertLinksUnderFolder(plugin.app.vault.getRoot(), plugin, finalFormat, preferredFormat);
 };
 
 const hasFrontmatter = (app: App, filePath: string, keyToCheck: string) => {
@@ -227,8 +245,11 @@ const convertMarkdownLinksToWikiLinks = async (md: string, sourceFile: TFile, pl
 
 /* -------------------- LINKS TO RELATIVE/ABSOLUTE/SHORTEST -------------------- */
 
-export const convertLinksInFileToPreferredFormat = async (mdFile: TFile, plugin: LinkConverterPlugin, finalFormat: FinalFormat) => {
+const convertLinksInTextToPreferredFormat = async (mdFile: TFile, plugin: LinkConverterPlugin, finalFormat: PreferredFormat): Promise<string> => {
     let fileText = await plugin.app.vault.read(mdFile);
+    if (finalFormat == 'not-change') {
+        return fileText;
+    }
     let linkMatches: LinkMatch[] = await getAllLinkMatchesInFile(mdFile, plugin);
     for (let linkMatch of linkMatches) {
         let fileLink = decodeURI(linkMatch.linkText);
@@ -238,11 +259,16 @@ export const convertLinksInFileToPreferredFormat = async (mdFile: TFile, plugin:
             fileText = fileText.replace(linkMatch.match, createLink(linkMatch.type, fileLink, linkMatch.altOrBlockRef, mdFile, plugin));
         }
     }
+    return fileText;
+}
+
+export const convertLinksInFileToPreferredFormat = async (mdFile: TFile, plugin: LinkConverterPlugin, finalFormat: PreferredFormat) => {
+    let fileText = await convertLinksInTextToPreferredFormat(mdFile, plugin, finalFormat);
     let fileStat = plugin.settings.keepMtime ? await plugin.app.vault.adapter.stat(normalizePath(mdFile.path)) : {};
     await plugin.app.vault.modify(mdFile, fileText, fileStat);
 };
 
-const getFileLinkInFormat = (file: TFile, sourceFile: TFile, plugin: LinkConverterPlugin, finalFormat: FinalFormat): string => {
+const getFileLinkInFormat = (file: TFile, sourceFile: TFile, plugin: LinkConverterPlugin, finalFormat: PreferredFormat): string => {
     let fileLink: string;
     if (finalFormat === 'absolute-path') {
         fileLink = file.path;
